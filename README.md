@@ -1,2 +1,2 @@
-# Machine_Learning_System_for_Sales_Forecasting_in_Rossmann_Retail_using_Historical_Sales_Data
+# Sales_Forecasting_in_Rossmann_Retail_using_Historical_Sales_Data
 Group Project for Machine Learning Operations
