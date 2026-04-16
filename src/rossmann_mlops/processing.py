@@ -57,7 +57,7 @@ def main():
     print("Train processed:", train_p.shape)
     print("Test processed:", test_p.shape)
 
-    # 🔥 SAVE FILE
+    # SAVE FILE
     train_p.to_csv("train_processed.csv", index=False)
     test_p.to_csv("test_processed.csv", index=False)
 

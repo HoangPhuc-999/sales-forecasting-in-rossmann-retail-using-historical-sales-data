@@ -99,7 +99,7 @@ def main():
     train = pd.read_csv("train_processed.csv")
     test = pd.read_csv("test_processed.csv")
 
-    # ⚠️ convert lại datetime (bắt buộc)
+    #  convert lại datetime
     train['Date'] = pd.to_datetime(train['Date'])
     test['Date'] = pd.to_datetime(test['Date'])
 
