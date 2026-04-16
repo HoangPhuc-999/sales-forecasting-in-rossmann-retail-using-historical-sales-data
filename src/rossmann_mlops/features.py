@@ -1,6 +1,11 @@
 import pandas as pd
 import numpy as np
 
+# ===== COLUMN DEFINITIONS =====
+CATEGORICAL_COLUMNS = ['StoreType', 'Assortment', 'StateHoliday', 'Promo', 'SchoolHoliday', 'Promo2', 'Is_Promo2_Month']
+NUMERIC_COLUMNS = ['Store', 'DayOfWeek', 'Month', 'Day', 'Year', 'WeekOfYear', 
+                   'CompetitionDistance', 'Promo2Open_Month', 'CompetitionOpen_Month']
+
 
 # ===== ROW-LEVEL FEATURE =====
 def extract_row_logic(df):
@@ -64,6 +69,22 @@ def extract_row_logic(df):
 
 
 # ===== MAIN FEATURE PIPELINE =====
+def merge_store_data(df: pd.DataFrame, store_df: pd.DataFrame) -> pd.DataFrame:
+    """
+    Merge store metadata with main dataframe
+    """
+    return df.merge(store_df, on='Store', how='left')
+
+
+def build_features(df: pd.DataFrame) -> pd.DataFrame:
+    """
+    Build features from raw data
+    """
+    df = df.copy()
+    df['Date'] = pd.to_datetime(df['Date'])
+    return run_feature_engineering(df, df)[0] if isinstance(run_feature_engineering(df, df), tuple) else df
+
+
 def run_feature_engineering(train_merged, test_merged):
 
     # ===== DROP EARLY (LEAKAGE + REDUNDANT) =====
