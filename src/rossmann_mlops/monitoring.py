@@ -240,7 +240,7 @@ def run_monitoring(
 
 
 def retrain_from_config(config_path: str | Path = "configs/config.yaml") -> dict[str, Any]:
-    from rossmann_mlops.train import train_pipeline
+    from src.rossmann_mlops.train_model import train_pipeline
 
     config = load_config(config_path)
     result = train_pipeline(config)
