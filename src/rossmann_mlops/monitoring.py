@@ -9,8 +9,8 @@ from typing import Any
 import numpy as np
 import pandas as pd
 
-from src.rossmann_mlops.config import load_config, resolve_path
-from src.rossmann_mlops.features import CATEGORICAL_COLUMNS, NUMERIC_COLUMNS, build_features, merge_store_data
+from rossmann_mlops.config import load_config, resolve_path
+from rossmann_mlops.features import CATEGORICAL_COLUMNS, NUMERIC_COLUMNS, build_features, merge_store_data
 
 
 @dataclass(frozen=True)
@@ -256,7 +256,7 @@ def run_monitoring(
 
 
 def retrain_from_config(config_path: str | Path = "configs/config.yaml") -> dict[str, Any]:
-    from src.rossmann_mlops.train_model import train_pipeline
+    from rossmann_mlops.train_model import train_pipeline
 
     config = load_config(config_path)
     result = train_pipeline(config)

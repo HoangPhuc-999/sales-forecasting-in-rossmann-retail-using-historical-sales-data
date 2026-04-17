@@ -11,8 +11,8 @@ import pandas as pd
 from sklearn.ensemble import RandomForestRegressor
 from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
 
-from src.rossmann_mlops.config import load_config, resolve_path
-from src.rossmann_mlops.features import build_features, merge_store_data
+from rossmann_mlops.config import load_config, resolve_path
+from rossmann_mlops.features import build_features, merge_store_data
 
 
 class TrainingError(ValueError):

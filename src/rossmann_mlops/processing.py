@@ -8,7 +8,7 @@ from typing import Any
 import numpy as np
 import pandas as pd
 
-from src.rossmann_mlops.config import load_config, resolve_path
+from rossmann_mlops.config import load_config, resolve_path
 
 
 class ProcessingError(ValueError):
