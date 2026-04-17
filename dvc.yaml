@@ -1,0 +1,20 @@
+stages:
+  train:
+    cmd: uv run python scripts/run_pipeline.py --config configs/config.yaml
+    deps:
+      - scripts/run_pipeline.py
+      - configs/config.yaml
+      - src/rossmann_mlops/config.py
+      - src/rossmann_mlops/train_model.py
+      - data/processed/train_final.csv
+      - data/raw/store.csv
+    params:
+      - configs/config.yaml:
+          - paths.train_data
+          - paths.store_data
+          - paths.model_file
+          - training.n_estimators
+          - training.random_state
+          - training.n_jobs
+    outs:
+      - artifacts/models/rossmann_model.joblib

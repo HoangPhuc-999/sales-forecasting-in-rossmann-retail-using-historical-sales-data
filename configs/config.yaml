@@ -1,6 +1,6 @@
 paths:
-  train_data: data/train.csv
-  store_data: data/store.csv
+  train_data: data/processed/train_final.csv
+  store_data: data/raw/store.csv
   model_file: artifacts/models/rossmann_model.joblib
   metrics_file: artifacts/metrics/metrics.json
 

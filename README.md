@@ -39,14 +39,19 @@ This repository contains an end-to-end MLOps baseline for Rossmann sales forecas
 1. Install dependencies
 
 ```bash
-pip install -e .
-pip install -e .[dev]
+uv sync
+```
+
+Optional (for local test tooling):
+
+```bash
+uv sync --extra dev
 ```
 
 2. Pull data from DVC (required)
 
 ```bash
-dvc pull data/train.csv data/store.csv
+dvc pull
 ```
 
 ## Run Training Pipeline
