@@ -1,31 +1,69 @@
-FROM python:3.11-slim
+# ──────────────────────────────────────────────
+# Stage 1: builder — cài deps vào /install
+# ──────────────────────────────────────────────
+FROM python:3.11-slim AS builder
+
+ENV PIP_NO_CACHE_DIR=1 \
+    PIP_DISABLE_PIP_VERSION_CHECK=1
+
+WORKDIR /install
+
+# Copy requirements trước để tận dụng Docker layer cache
+COPY requirements-api.txt .
+RUN pip install --prefix=/install --no-cache-dir -r requirements-api.txt
+
+# ──────────────────────────────────────────────
+# Stage 2: api — image chạy FastAPI (nhỏ gọn)
+# ──────────────────────────────────────────────
+FROM python:3.11-slim AS api
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
-    PYTHONUNBUFFERED=1 \
-    PIP_NO_CACHE_DIR=1
+    PYTHONUNBUFFERED=1
+
+# curl dùng cho HEALTHCHECK
+RUN apt-get update && apt-get install -y --no-install-recommends curl \
+    && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
 
-# Copy application code
-COPY src ./src
-COPY app ./app
+# Copy installed packages từ builder
+COPY --from=builder /install /usr/local
+
+# Copy source code (thứ tự từ ít thay đổi → hay thay đổi để tối ưu cache)
 COPY configs ./configs
-COPY scripts ./scripts
+COPY src     ./src
+COPY app/main.py ./app/main.py
 
-# Copy dependency files
-COPY pyproject.toml README.md requirements.txt ./
-
-# Install Python dependencies
-# RUN pip install --upgrade pip setuptools wheel && \
-#     pip install -e . && \
-RUN pip install -r requirements.txt
-
-# Create artifact directories
-RUN mkdir -p data artifacts/models artifacts/metrics logs
+RUN mkdir -p artifacts/models artifacts/metrics logs data
 
 EXPOSE 8000
 
-HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
+HEALTHCHECK --interval=30s --timeout=10s --start-period=10s --retries=3 \
     CMD curl -f http://localhost:8000/health || exit 1
 
 CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
+
+# ──────────────────────────────────────────────
+# Stage 3: streamlit — image chạy Streamlit UI
+# ──────────────────────────────────────────────
+FROM python:3.11-slim AS streamlit
+
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1
+
+WORKDIR /app
+
+COPY requirements-streamlit.txt .
+RUN pip install --no-cache-dir -r requirements-streamlit.txt
+
+COPY app/streamlit_app.py ./app/streamlit_app.py
+
+EXPOSE 8501
+
+HEALTHCHECK --interval=30s --timeout=10s --start-period=10s --retries=3 \
+    CMD curl -f http://localhost:8501/_stcore/health || exit 1
+
+CMD ["streamlit", "run", "app/streamlit_app.py", \
+     "--server.port=8501", \
+     "--server.address=0.0.0.0", \
+     "--server.headless=true"]
