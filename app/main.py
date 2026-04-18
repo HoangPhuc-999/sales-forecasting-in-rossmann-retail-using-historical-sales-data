@@ -29,9 +29,11 @@ class PredictionRequest(BaseModel):
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     config = load_config()
+    paths = config.get("paths", {})
     app.state.predictor = Predictor(
-        model_path=config["paths"]["model_file"],
-        store_data_path=config["paths"]["store_data"],
+        model_path=paths["model_file"],
+        store_data_path=paths["store_data"],
+        artifacts_dir=paths.get("artifacts_dir"),
     )
     yield
 
