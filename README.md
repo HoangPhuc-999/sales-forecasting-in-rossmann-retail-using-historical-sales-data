@@ -28,7 +28,7 @@ This repository contains an end-to-end MLOps baseline for Rossmann sales forecas
 |   |-- config.py
 |   |-- features.py
 |   |-- predict.py
-|   `-- train.py
+|   `-- train_model.py
 |-- tests/
 |   `-- test_pipeline_smoke.py
 `-- .github/workflows/ci.yml
@@ -70,6 +70,15 @@ Output artifacts:
 
 - Model: `artifacts/models/rossmann_model.joblib`
 - Metrics: `artifacts/metrics/metrics.json`
+- Mapping artifacts:
+	- `artifacts/models/store_dw_promo_mapping.pkl`
+	- `artifacts/models/month_mapping.pkl`
+	- `artifacts/models/global_mean_sales.pkl`
+
+Model config behavior:
+
+- `training.production_train: true` -> overwrite `paths.model_config_file` (official production config)
+- `training.production_train: false` -> write candidate config file and keep production config unchanged
 
 ## Run API
 
@@ -114,6 +123,11 @@ The monitoring layer covers:
 - alert creation when model quality is low
 - retrain script
 - input error handling in API
+
+The training pipeline logs both classic regression metrics and Rossmann metric:
+
+- `train_rmspe`, `val_rmspe`, `rmspe_gap`
+- `rmse`, `mae`, `r2`
 
 Run monitoring on a new CSV:
 
@@ -166,7 +180,7 @@ Pipeline actions:
 
 ## Rubric Mapping (MLOps Pipeline)
 
-- Pipeline train -> eval -> save model: `src/rossmann_mlops/train.py`
+- Pipeline train -> eval -> save model: `src/rossmann_mlops/train_model.py`
 - API (FastAPI): `app/main.py`
 - GitHub Actions CI: `.github/workflows/ci.yml`
 - Automation script: `scripts/run_pipeline.py` and `scripts/run_pipeline.bat`

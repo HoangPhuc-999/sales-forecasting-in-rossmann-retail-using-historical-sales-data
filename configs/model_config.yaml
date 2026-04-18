@@ -1,31 +1,28 @@
+project: Rossmann Store Sales
 best_model:
   name: XGBoost
+  val_rmspe: 0.24158207904053386
   params:
-    colsample_bytree: 0.7688520150734801
-    gamma: 0.00023429788475798095
-    learning_rate: 0.02484904299575523
-    max_depth: 11
-    min_child_weight: 14
-    n_estimators: 1000
-    subsample: 0.8437880308889292
-  rmspe: 0.11968351253681452
+    objective: reg:squarederror
+    enable_categorical: false
+    learning_rate: 0.025
+    max_depth: 3
+    min_child_weight: 14.0
+    missing: .nan
+    n_estimators: 5
+    n_jobs: 1
+    random_state: 42
+    tree_method: hist
 features:
   input_columns:
   - Store
   - DayOfWeek
   - Promo
+  - Open
   - StateHoliday
   - SchoolHoliday
-  - StoreType
-  - Assortment
-  - CompetitionDistance_log
   - Year
-  - Day
   - WeekOfYear
-  - Promo2Open_Month
-  - CompetitionOpen_Month
-  - Is_Promo2_Month
   - Store_DW_Promo_Avg
   - Month_Avg_Sales
   target: Sales_log
-project: Rossmann Store Sales

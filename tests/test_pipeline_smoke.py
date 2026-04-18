@@ -48,6 +48,8 @@ def test_train_pipeline_smoke(tmp_path: Path) -> None:
     store_path = tmp_path / "store.csv"
     model_path = tmp_path / "models" / "model.joblib"
     metrics_path = tmp_path / "metrics" / "metrics.json"
+    official_model_config_path = tmp_path / "configs" / "model_config.yaml"
+    candidate_model_config_path = tmp_path / "models" / "model_config_candidate.yaml"
     config_path = tmp_path / "config.yaml"
 
     train_df.to_csv(train_path, index=False)
@@ -59,8 +61,11 @@ def test_train_pipeline_smoke(tmp_path: Path) -> None:
             "store_data": str(store_path),
             "model_file": str(model_path),
             "metrics_file": str(metrics_path),
+            "model_config_file": str(official_model_config_path),
+            "model_config_candidate_file": str(candidate_model_config_path),
         },
         "training": {
+            "production_train": False,
             "validation_start_date": "2015-06-01",
             "n_estimators": 10,
             "random_state": 42,
@@ -73,6 +78,9 @@ def test_train_pipeline_smoke(tmp_path: Path) -> None:
 
     assert model_path.exists()
     assert metrics_path.exists()
+    assert candidate_model_config_path.exists()
+    assert not official_model_config_path.exists()
+    assert result["model_config_overwritten"] is False
     assert result["metrics"]["rmse"] >= 0
 
     saved_metrics = json.loads(metrics_path.read_text(encoding="utf-8"))

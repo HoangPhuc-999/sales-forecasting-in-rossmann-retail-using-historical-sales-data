@@ -5,6 +5,7 @@ import json
 import logging
 from pathlib import Path
 from typing import Any
+from datetime import datetime
 
 import joblib
 import mlflow
@@ -153,6 +154,46 @@ def _resolve_artifacts_dir(paths: dict[str, Any], model_path: Path) -> Path:
     return model_path.parent
 
 
+def _is_missing_value(value: Any) -> bool:
+    if value is None:
+        return True
+    try:
+        return bool(pd.isna(value))
+    except Exception:
+        return False
+
+
+def _compact_model_params(params: dict[str, Any]) -> dict[str, Any]:
+    compact: dict[str, Any] = {}
+    for key, value in params.items():
+        if _is_missing_value(value):
+            continue
+        if isinstance(value, (np.generic,)):
+            compact[key] = value.item()
+        else:
+            compact[key] = value
+    return compact
+
+
+def _resolve_model_config_output_path(
+    *,
+    paths: dict[str, Any],
+    training: dict[str, Any],
+    artifacts_dir: Path,
+    default_model_config_path: Path,
+) -> tuple[Path, bool]:
+    is_production_train = bool(training.get("production_train", False))
+    if is_production_train:
+        return default_model_config_path, True
+
+    candidate_override = paths.get("model_config_candidate_file")
+    if candidate_override:
+        return resolve_path(candidate_override), False
+
+    timestamp = datetime.utcnow().strftime("%Y%m%d_%H%M%S")
+    return artifacts_dir / f"model_config_candidate_{timestamp}.yaml", False
+
+
 def _log_mlflow_payload(
     mlflow_cfg: dict[str, Any],
     model: xgb.XGBRegressor,
@@ -185,7 +226,7 @@ def train_pipeline(config: dict[str, Any]) -> dict[str, Any]:
     model_path = resolve_path(paths["model_file"])
     metrics_path = resolve_path(paths["metrics_file"])
     artifacts_dir = _resolve_artifacts_dir(paths, model_path)
-    model_config_path = resolve_path(paths.get("model_config_file", "configs/model_config.yaml"))
+    default_model_config_path = resolve_path(paths.get("model_config_file", "configs/model_config.yaml"))
 
     raw_df = _load_training_data(paths)
     prepared_df = _prepare_training_columns(raw_df)
@@ -245,6 +286,13 @@ def train_pipeline(config: dict[str, Any]) -> dict[str, Any]:
     model_path.parent.mkdir(parents=True, exist_ok=True)
     metrics_path.parent.mkdir(parents=True, exist_ok=True)
     artifacts_dir.mkdir(parents=True, exist_ok=True)
+    model_params = _compact_model_params(model.get_params())
+    model_config_path, config_overwritten = _resolve_model_config_output_path(
+        paths=paths,
+        training=training,
+        artifacts_dir=artifacts_dir,
+        default_model_config_path=default_model_config_path,
+    )
     model_config_path.parent.mkdir(parents=True, exist_ok=True)
 
     joblib.dump(model, model_path)
@@ -259,7 +307,7 @@ def train_pipeline(config: dict[str, Any]) -> dict[str, Any]:
         "best_model": {
             "name": "XGBoost",
             "val_rmspe": float(val_rmspe),
-            "params": model.get_params(),
+            "params": model_params,
         },
         "features": {
             "input_columns": list(x_train.columns),
@@ -276,6 +324,7 @@ def train_pipeline(config: dict[str, Any]) -> dict[str, Any]:
         "metrics": metrics,
         "n_train": int(len(x_train)),
         "n_validation": int(len(x_val)),
+        "model_config_overwritten": config_overwritten,
     }
 
 
