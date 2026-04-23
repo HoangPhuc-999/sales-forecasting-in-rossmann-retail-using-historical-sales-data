@@ -13,7 +13,12 @@ import streamlit as st
 # ──────────────────────────────────────────────
 # CONFIG
 # ──────────────────────────────────────────────
-API_URL = os.getenv("API_URL", "http://localhost:8000")
+# Prefer Streamlit Cloud secrets, then environment variables, then local fallback.
+API_URL = (
+    st.secrets.get("API_URL")
+    or os.getenv("API_URL")
+    or "http://localhost:8000"
+)
 
 st.set_page_config(
     page_title="Rossmann Sales Forecast",
