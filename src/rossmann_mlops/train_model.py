@@ -82,33 +82,62 @@ def _prepare_training_columns(train_df: pd.DataFrame) -> pd.DataFrame:
     return frame.dropna(subset=["Year", "WeekOfYear", "Month", "DayOfWeek", "Promo", "Sales_log"]).copy()
 
 
+from sklearn.model_selection import KFold
+import pandas as pd
+import numpy as np
+
 def apply_feature_engineering(
     train_set: pd.DataFrame,
     val_set: pd.DataFrame,
 ) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame, pd.DataFrame, float]:
-    logger.info("Computing target-encoding mapping features")
+    logger.info("Computing OOF target-encoding for Train and mapping for Val")
 
-    store_dw_promo_avg = (
-        train_set.groupby(["Store", "DayOfWeek", "Promo"])["Sales_log"].mean().reset_index()
+    # Sao chép để tránh làm thay đổi dataframe gốc ngoài ý muốn
+    train_df = train_set.copy()
+    val_df = val_set.copy()
+
+    # 1. KHỞI TẠO OOF (Dành riêng cho Train Set)
+    kf = KFold(n_splits=5, shuffle=True, random_state=42)
+    train_df['Store_DW_Promo_Avg'] = np.nan
+    train_df['Month_Avg_Sales'] = np.nan
+
+    for train_idx, val_idx in kf.split(train_df):
+        fold_train = train_df.iloc[train_idx]
+        fold_val = train_df.iloc[val_idx]
+
+        # Store_DW_Promo_Avg
+        group_store = fold_train.groupby(['Store', 'DayOfWeek', 'Promo'])['Sales_log'].mean()
+        train_df.loc[train_df.index[val_idx], 'Store_DW_Promo_Avg'] = (
+            fold_val.set_index(['Store', 'DayOfWeek', 'Promo']).index.map(group_store)
+        )
+
+        # Month_Avg_Sales
+        group_month = fold_train.groupby('Month')['Sales_log'].mean()
+        train_df.loc[train_df.index[val_idx], 'Month_Avg_Sales'] = (
+            fold_val['Month'].map(group_month)
+        )
+
+    # 2. TÍNH MAPPING TRÊN FULL TRAIN (Dành cho Val và Test sau này)
+    store_dw_promo_avg_map = (
+        train_df.groupby(["Store", "DayOfWeek", "Promo"])["Sales_log"].mean().reset_index()
     )
-    store_dw_promo_avg.rename(columns={"Sales_log": "Store_DW_Promo_Avg"}, inplace=True)
+    store_dw_promo_avg_map.rename(columns={"Sales_log": "Store_DW_Promo_Avg"}, inplace=True)
 
-    month_avg = train_set.groupby("Month")["Sales_log"].mean().reset_index()
-    month_avg.rename(columns={"Sales_log": "Month_Avg_Sales"}, inplace=True)
+    month_avg_map = train_df.groupby("Month")["Sales_log"].mean().reset_index()
+    month_avg_map.rename(columns={"Sales_log": "Month_Avg_Sales"}, inplace=True)
 
-    train_set = train_set.merge(store_dw_promo_avg, on=["Store", "DayOfWeek", "Promo"], how="left")
-    train_set = train_set.merge(month_avg, on="Month", how="left")
+    # 3. MERGE SANG VAL_SET
+    val_df = val_df.merge(store_dw_promo_avg_map, on=["Store", "DayOfWeek", "Promo"], how="left")
+    val_df = val_df.merge(month_avg_map, on="Month", how="left")
 
-    val_set = val_set.merge(store_dw_promo_avg, on=["Store", "DayOfWeek", "Promo"], how="left")
-    val_set = val_set.merge(month_avg, on="Month", how="left")
+    # 4. FILL NaN VỚI GLOBAL MEAN
+    global_mean_train = float(train_df["Sales_log"].mean())
+    
+    cols_to_fill = ["Store_DW_Promo_Avg", "Month_Avg_Sales"]
+    train_df[cols_to_fill] = train_df[cols_to_fill].fillna(global_mean_train)
+    val_df[cols_to_fill] = val_df[cols_to_fill].fillna(global_mean_train)
 
-    global_mean_train = float(train_set["Sales_log"].mean())
-    train_set["Store_DW_Promo_Avg"] = train_set["Store_DW_Promo_Avg"].fillna(global_mean_train)
-    train_set["Month_Avg_Sales"] = train_set["Month_Avg_Sales"].fillna(global_mean_train)
-    val_set["Store_DW_Promo_Avg"] = val_set["Store_DW_Promo_Avg"].fillna(global_mean_train)
-    val_set["Month_Avg_Sales"] = val_set["Month_Avg_Sales"].fillna(global_mean_train)
-
-    return train_set, val_set, store_dw_promo_avg, month_avg, global_mean_train
+    return train_df, val_df, store_dw_promo_avg_map, month_avg_map, global_mean_train
 
 
 def _load_training_data(paths: dict[str, Any]) -> pd.DataFrame:
