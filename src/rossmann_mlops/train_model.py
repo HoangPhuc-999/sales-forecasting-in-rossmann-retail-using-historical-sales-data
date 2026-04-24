@@ -96,26 +96,34 @@ def apply_feature_engineering(
     train_df = train_set.copy()
     val_df = val_set.copy()
 
+    if train_df.empty:
+        raise TrainingError("Training split is empty after preprocessing")
+
     # 1. KHỞI TẠO OOF (Dành riêng cho Train Set)
-    kf = KFold(n_splits=5, shuffle=True, random_state=42)
     train_df['Store_DW_Promo_Avg'] = np.nan
     train_df['Month_Avg_Sales'] = np.nan
 
-    for train_idx, val_idx in kf.split(train_df):
-        fold_train = train_df.iloc[train_idx]
-        fold_val = train_df.iloc[val_idx]
+    if len(train_df) >= 2:
+        n_splits = min(5, len(train_df))
+        kf = KFold(n_splits=n_splits, shuffle=True, random_state=42)
 
-        # Store_DW_Promo_Avg
-        group_store = fold_train.groupby(['Store', 'DayOfWeek', 'Promo'])['Sales_log'].mean()
-        train_df.loc[train_df.index[val_idx], 'Store_DW_Promo_Avg'] = (
-            fold_val.set_index(['Store', 'DayOfWeek', 'Promo']).index.map(group_store)
-        )
+        for train_idx, val_idx in kf.split(train_df):
+            fold_train = train_df.iloc[train_idx]
+            fold_val = train_df.iloc[val_idx]
 
-        # Month_Avg_Sales
-        group_month = fold_train.groupby('Month')['Sales_log'].mean()
-        train_df.loc[train_df.index[val_idx], 'Month_Avg_Sales'] = (
-            fold_val['Month'].map(group_month)
-        )
+            # Store_DW_Promo_Avg
+            group_store = fold_train.groupby(['Store', 'DayOfWeek', 'Promo'])['Sales_log'].mean()
+            train_df.loc[train_df.index[val_idx], 'Store_DW_Promo_Avg'] = (
+                fold_val.set_index(['Store', 'DayOfWeek', 'Promo']).index.map(group_store)
+            )
+
+            # Month_Avg_Sales
+            group_month = fold_train.groupby('Month')['Sales_log'].mean()
+            train_df.loc[train_df.index[val_idx], 'Month_Avg_Sales'] = (
+                fold_val['Month'].map(group_month)
+            )
+    else:
+        logger.warning("Not enough rows for KFold target encoding. Falling back to global mean fill.")
 
     # 2. TÍNH MAPPING TRÊN FULL TRAIN (Dành cho Val và Test sau này)
     store_dw_promo_avg_map = (
