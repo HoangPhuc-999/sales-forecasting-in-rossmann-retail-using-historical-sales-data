@@ -14,24 +14,46 @@ This repository contains an end-to-end MLOps baseline for Rossmann sales forecas
 
 ```text
 .
+|-- .github/workflows/
+|   |-- rossmann-ci-workflow.yaml
+|   |-- rossmann-pipeline.yaml
+|   `-- streamlit-ci.yaml
 |-- app/
-|   `-- main.py
+|   |-- main.py
+|   `-- streamlit_app.py
+|-- artifacts/
 |-- configs/
 |   `-- config.yaml
+|-- data/
+|-- k8s/
+|-- logs/
+|-- monitoring/
+|-- notebooks/
 |-- scripts/
 |   |-- run_pipeline.py
 |   |-- monitor.py
 |   |-- retrain.py
 |   `-- run_pipeline.bat
-|-- requirements.txt
-|-- src/rossmann_mlops/
-|   |-- config.py
-|   |-- features.py
-|   |-- predict.py
-|   `-- train_model.py
+|-- src/
+|   `-- rossmann_mlops/
+|       |-- alert_notifier.py
+|       |-- config.py
+|       |-- model_metrics_exporter.py
+|       |-- monitoring.py
+|       |-- predict.py
+|       |-- processing.py
+|       `-- train_model.py
+|-- dvc.yaml
+|-- dvc.lock
 |-- tests/
 |   `-- test_pipeline_smoke.py
-`-- .github/workflows/ci.yml
+|-- Dockerfile.api
+|-- Dockerfile.streamlit
+|-- docker-compose.yaml
+|-- pyproject.toml
+|-- requirements.api.txt
+|-- requirements.txt
+`-- uv.lock
 ```
 
 ## Setup
@@ -56,6 +78,14 @@ dvc pull
 
 ## Run Training Pipeline
 
+Preferred (full pipeline):
+
+```bash
+dvc repro
+```
+
+Direct training (assumes processed data already exists):
+
 ```bash
 python scripts/run_pipeline.py --config configs/config.yaml
 ```
@@ -75,10 +105,9 @@ Output artifacts:
 	- `artifacts/models/month_mapping.pkl`
 	- `artifacts/models/global_mean_sales.pkl`
 
-Model config behavior:
+Model config:
 
-- `training.production_train: true` -> overwrite `paths.model_config_file` (official production config)
-- `training.production_train: false` -> write candidate config file and keep production config unchanged
+- `configs/model_config.yaml` is updated after each training run.
 
 ## Run API
 
@@ -132,10 +161,10 @@ The training pipeline logs both classic regression metrics and Rossmann metric:
 Run monitoring on a new CSV:
 
 ```bash
-python scripts/monitor.py --current data/test.csv
+python scripts/monitor.py --current data/raw/test.csv
 ```
 
-This reads the reference data from `data/train.csv`, loads `data/store.csv`, compares features, and writes logs into `logs/`.
+This reads the reference data from `data/raw/train.csv`, loads `data/raw/store.csv`, compares features, and writes logs into `logs/`.
 
 Run retraining:
 
@@ -192,11 +221,9 @@ To generate traffic for dashboard panels, call `/health` or `/predict` repeatedl
 
 This project is set up to support reproducible runs:
 
-- `requirements.txt` lists the main dependencies for local setup.
+- `pyproject.toml` (via `uv sync`) lists the main dependencies for local setup.
 - `configs/config.yaml` keeps the training seed and experiment log path in one place.
-- `src/rossmann_mlops/train.py` fixes the global seed before training.
-- Each training run writes an experiment record to `logs/experiments.jsonl`.
-- The experiment record stores the model hash and DVC data hashes from `data/*.dvc`.
+- `dvc.yaml` and `dvc.lock` track pipeline stages and data versions.
 
 If you want to re-run the exact same setup, keep the same data version from DVC and the same seed value.
 
@@ -208,9 +235,11 @@ pytest -q
 
 ## CI
 
-GitHub Actions workflow file:
+GitHub Actions workflow files:
 
-- `.github/workflows/ci.yml`
+- `.github/workflows/rossmann-ci-workflow.yaml`
+- `.github/workflows/rossmann-pipeline.yaml`
+- `.github/workflows/streamlit-ci.yaml`
 
 Pipeline actions:
 
