@@ -54,6 +54,7 @@ jobs:
   docker-build-smoke:
     needs: quality-checks
     runs-on: ubuntu-latest
+    if: ${{ github.event_name != 'push' }}
 
     permissions:
       contents: read

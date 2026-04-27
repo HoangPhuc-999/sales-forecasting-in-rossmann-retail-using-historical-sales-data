@@ -42,10 +42,10 @@ jobs:
           python-version: "3.11"
           cache: "pip"
 
-      - name: Install dependencies
+      - name: Install only DVC dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install -e .
+          pip install "dvc[s3]>=3.67.1"
 
       - name: Pull DVC data from S3 (optional)
         if: ${{ env.AWS_ACCESS_KEY_ID != '' && env.AWS_SECRET_ACCESS_KEY != '' }}
@@ -399,7 +399,7 @@ jobs:
 
   # Job 5: Build and Publish Docker image (Multi-platform)
   build-and-publish:
-    needs: [data-processing, monitoring-and-evaluation, model-training]
+    needs: [data-processing, model-training]
     runs-on: ubuntu-latest
     if: ${{ github.event_name != 'pull_request' && needs.model-training.outputs.should-promote == 'true' }}
 
@@ -421,10 +421,10 @@ jobs:
           echo "Metric: ${{ needs.model-training.outputs.promotion-metric }}"
           echo "Reason: ${{ needs.model-training.outputs.promotion-reason }}"
 
-      - name: Download monitoring results
+      - name: Download model artifacts
         uses: actions/download-artifact@v4
         with:
-          name: monitoring-results-${{ github.sha }}
+          name: model-artifacts-${{ github.sha }}
           path: .
 
       - name: Download processed data
@@ -436,9 +436,7 @@ jobs:
       - name: Normalize downloaded data layout for image build
         run: |
           mkdir -p data/raw
-          [ -f train.csv ] && [ ! -f data/raw/train.csv ] && mv train.csv data/raw/train.csv || true
           [ -f store.csv ] && [ ! -f data/raw/store.csv ] && mv store.csv data/raw/store.csv || true
-          [ -f test.csv ] && [ ! -f data/raw/test.csv ] && mv test.csv data/raw/test.csv || true
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
@@ -464,21 +462,49 @@ jobs:
           echo "version=$(date +%Y%m%d-%H%M%S)" >> $GITHUB_OUTPUT
           echo "git-sha=${{ github.sha }}" >> $GITHUB_OUTPUT
 
+      - name: Select Docker platforms
+        id: platforms
+        run: |
+          if [[ "${GITHUB_REF}" == refs/tags/v* ]]; then
+            echo "value=linux/amd64,linux/arm64" >> $GITHUB_OUTPUT
+          else
+            echo "value=linux/amd64" >> $GITHUB_OUTPUT
+          fi
+
       - name: Normalize repository name for GHCR tags
         id: ghcr
         run: |
           REPO_LC=$(echo "${GITHUB_REPOSITORY}" | tr '[:upper:]' '[:lower:]')
           echo "repo-lc=$REPO_LC" >> $GITHUB_OUTPUT
 
-      - name: Build and push API image (Multi-platform)
-        if: ${{ env.HAS_DOCKER_TOKEN == 'true' }}
+      - name: Build and push API image (DockerHub + GHCR)
+        if: ${{ env.HAS_DOCKER_TOKEN == 'true' && env.HAS_GH_TOKEN == 'true' }}
         uses: docker/build-push-action@v6
         with:
           context: .
           file: ./Dockerfile.api
           target: api
           push: true
-          platforms: linux/amd64,linux/arm64
+          platforms: ${{ steps.platforms.outputs.value }}
+          tags: |
+            docker.io/${{ vars.DOCKERHUB_USERNAME }}/rossmann-mlops-api:latest
+            docker.io/${{ vars.DOCKERHUB_USERNAME }}/rossmann-mlops-api:${{ github.sha }}
+            docker.io/${{ vars.DOCKERHUB_USERNAME }}/rossmann-mlops-api:${{ steps.meta.outputs.version }}
+            ghcr.io/${{ steps.ghcr.outputs.repo-lc }}-api:latest
+            ghcr.io/${{ steps.ghcr.outputs.repo-lc }}-api:${{ github.sha }}
+            ghcr.io/${{ steps.ghcr.outputs.repo-lc }}-api:${{ steps.meta.outputs.version }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Build and push API image (DockerHub only)
+        if: ${{ env.HAS_DOCKER_TOKEN == 'true' && env.HAS_GH_TOKEN != 'true' }}
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ./Dockerfile.api
+          target: api
+          push: true
+          platforms: ${{ steps.platforms.outputs.value }}
           tags: |
             docker.io/${{ vars.DOCKERHUB_USERNAME }}/rossmann-mlops-api:latest
             docker.io/${{ vars.DOCKERHUB_USERNAME }}/rossmann-mlops-api:${{ github.sha }}
@@ -486,31 +512,15 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
-      - name: Build and push Streamlit image (Multi-platform)
-        if: ${{ env.HAS_DOCKER_TOKEN == 'true' }}
-        uses: docker/build-push-action@v6
-        with:
-          context: .
-          file: ./Dockerfile.streamlit
-          target: streamlit
-          push: true
-          platforms: linux/amd64,linux/arm64
-          tags: |
-            docker.io/${{ vars.DOCKERHUB_USERNAME }}/rossmann-mlops-streamlit:latest
-            docker.io/${{ vars.DOCKERHUB_USERNAME }}/rossmann-mlops-streamlit:${{ github.sha }}
-            docker.io/${{ vars.DOCKERHUB_USERNAME }}/rossmann-mlops-streamlit:${{ steps.meta.outputs.version }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
-
-      - name: Push API image to GitHub Container Registry (Multi-platform)
-        if: ${{ env.HAS_GH_TOKEN == 'true' }}
+      - name: Build and push API image (GHCR only)
+        if: ${{ env.HAS_DOCKER_TOKEN != 'true' && env.HAS_GH_TOKEN == 'true' }}
         uses: docker/build-push-action@v6
         with:
           context: .
           file: ./Dockerfile.api
           target: api
           push: true
-          platforms: linux/amd64,linux/arm64
+          platforms: ${{ steps.platforms.outputs.value }}
           tags: |
             ghcr.io/${{ steps.ghcr.outputs.repo-lc }}-api:latest
             ghcr.io/${{ steps.ghcr.outputs.repo-lc }}-api:${{ github.sha }}
@@ -518,15 +528,50 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
-      - name: Push Streamlit image to GitHub Container Registry (Multi-platform)
-        if: ${{ env.HAS_GH_TOKEN == 'true' }}
+      - name: Build and push Streamlit image (DockerHub + GHCR)
+        if: ${{ env.HAS_DOCKER_TOKEN == 'true' && env.HAS_GH_TOKEN == 'true' }}
         uses: docker/build-push-action@v6
         with:
           context: .
           file: ./Dockerfile.streamlit
           target: streamlit
           push: true
-          platforms: linux/amd64,linux/arm64
+          platforms: ${{ steps.platforms.outputs.value }}
+          tags: |
+            docker.io/${{ vars.DOCKERHUB_USERNAME }}/rossmann-mlops-streamlit:latest
+            docker.io/${{ vars.DOCKERHUB_USERNAME }}/rossmann-mlops-streamlit:${{ github.sha }}
+            docker.io/${{ vars.DOCKERHUB_USERNAME }}/rossmann-mlops-streamlit:${{ steps.meta.outputs.version }}
+            ghcr.io/${{ steps.ghcr.outputs.repo-lc }}-streamlit:latest
+            ghcr.io/${{ steps.ghcr.outputs.repo-lc }}-streamlit:${{ github.sha }}
+            ghcr.io/${{ steps.ghcr.outputs.repo-lc }}-streamlit:${{ steps.meta.outputs.version }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Build and push Streamlit image (DockerHub only)
+        if: ${{ env.HAS_DOCKER_TOKEN == 'true' && env.HAS_GH_TOKEN != 'true' }}
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ./Dockerfile.streamlit
+          target: streamlit
+          push: true
+          platforms: ${{ steps.platforms.outputs.value }}
+          tags: |
+            docker.io/${{ vars.DOCKERHUB_USERNAME }}/rossmann-mlops-streamlit:latest
+            docker.io/${{ vars.DOCKERHUB_USERNAME }}/rossmann-mlops-streamlit:${{ github.sha }}
+            docker.io/${{ vars.DOCKERHUB_USERNAME }}/rossmann-mlops-streamlit:${{ steps.meta.outputs.version }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Build and push Streamlit image (GHCR only)
+        if: ${{ env.HAS_DOCKER_TOKEN != 'true' && env.HAS_GH_TOKEN == 'true' }}
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ./Dockerfile.streamlit
+          target: streamlit
+          push: true
+          platforms: ${{ steps.platforms.outputs.value }}
           tags: |
             ghcr.io/${{ steps.ghcr.outputs.repo-lc }}-streamlit:latest
             ghcr.io/${{ steps.ghcr.outputs.repo-lc }}-streamlit:${{ github.sha }}
