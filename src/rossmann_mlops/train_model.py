@@ -47,9 +47,17 @@ def _load_processed_data(
     train_df = pd.read_csv(train_path)
     val_df   = pd.read_csv(val_path)
 
-    # Ép kiểu numeric để XGBoost không báo lỗi dtype object
-    train_df = train_df.apply(pd.to_numeric, errors="ignore")
-    val_df   = val_df.apply(pd.to_numeric, errors="ignore")
+    # MỚI - không gây FutureWarning
+    for col in train_df.columns:
+        try:
+            train_df[col] = pd.to_numeric(train_df[col])
+        except (ValueError, TypeError):
+            pass
+    for col in val_df.columns:
+        try:
+            val_df[col] = pd.to_numeric(val_df[col])
+        except (ValueError, TypeError):
+            pass
 
     logger.info(f"Loaded training data: {len(train_df)} rows from {train_path}")
     logger.info(f"Loaded validation data: {len(val_df)} rows from {val_path}")
@@ -287,16 +295,33 @@ def train_pipeline(config: dict[str, Any]) -> dict[str, Any]:
             "target": "Sales_log",
         },
     }
+# Lưu candidate config (luôn lưu sau mỗi lần train)
+    candidate_config_key = paths.get("model_config_candidate_file")
+    candidate_config_path = resolve_path(candidate_config_key) if candidate_config_key else None
+    if candidate_config_path:
+        candidate_config_path.parent.mkdir(parents=True, exist_ok=True)
+        candidate_config_path.write_text(
+            yaml.safe_dump(model_config_payload, sort_keys=False), encoding="utf-8"
+        )
+        logger.info(f"Candidate model config saved to: {candidate_config_path}")
 
+    # Official config chỉ ghi khi không có candidate path
+    model_config_overwritten = False
     model_config_path = default_model_config_path
-    model_config_path.parent.mkdir(parents=True, exist_ok=True)
-    model_config_path.write_text(yaml.safe_dump(model_config_payload, sort_keys=False), encoding="utf-8")
-    logger.info(f"Model config saved to: {model_config_path}")
+    if not candidate_config_path:
+        model_config_path.parent.mkdir(parents=True, exist_ok=True)
+        model_config_path.write_text(
+            yaml.safe_dump(model_config_payload, sort_keys=False), encoding="utf-8"
+        )
+        logger.info(f"Model config saved to: {model_config_path}")
+        model_config_overwritten = True
 
     return {
         "model_path": str(model_path),
         "metrics_path": str(metrics_path),
         "model_config_path": str(model_config_path),
+        "model_config_candidate_path": str(candidate_config_path) if candidate_config_path else None,
+        "model_config_overwritten": model_config_overwritten,
         "artifacts_dir": str(artifacts_dir),
         "metrics": metrics,
         "n_train": int(len(x_train)),
