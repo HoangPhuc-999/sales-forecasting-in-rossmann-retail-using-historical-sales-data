@@ -1,50 +1,154 @@
 schema: '2.0'
 stages:
   train:
-    cmd: python scripts/run_pipeline.py --config configs/config.yaml
+    cmd: .\.venv\Scripts\python.exe scripts/run_pipeline.py --config 
+      configs/config.yaml
     deps:
     - path: configs/config.yaml
       hash: md5
-      md5: 7383b9e31dff38b7cb404696099313b3
-      size: 653
-    - path: data/raw/store.csv
+      md5: c5dcc13f36e58283664467868b5d01f9
+      size: 794
+    - path: data/processed/train_final.csv
       hash: md5
-      md5: c14bfb90b2537db09dbb2b8ef4697f17
-      size: 46126
-    - path: data/raw/train.csv
+      md5: bfe48f412d04079560adb9d5c060f0db
+      size: 85428965
+    - path: data/processed/val_final.csv
       hash: md5
-      md5: b7d92d5392ab95be0022169f67780de2
-      size: 39075162
+      md5: fb150f0ea381645c1a968e6bbaf809c0
+      size: 3937776
     - path: scripts/run_pipeline.py
       hash: md5
-      md5: 611c85c7f4e797875c3e85c72be3d42d
-      size: 619
+      md5: 7486be6ef0b567ef6fdc5d3fb872e69c
+      size: 611
     - path: src/rossmann_mlops/config.py
       hash: md5
       md5: 2edc53ce2893a83c393374196cb731bf
       size: 1243
-    - path: src/rossmann_mlops/features.py
-      hash: md5
-      md5: 154100e5f447ddf34f36e21f63a5ed2f
-      size: 7839
     - path: src/rossmann_mlops/train_model.py
       hash: md5
-      md5: 09847df9830394ed4924ee1c78f3717c
-      size: 6007
+      md5: 4cc0a5473df630774b52577acd64adcd
+      size: 12063
     params:
       configs/config.yaml:
+        paths.metrics_file: artifacts/metrics/metrics.json
+        paths.model_config_file: configs/model_config.yaml
         paths.model_file: artifacts/models/rossmann_model.joblib
-        paths.store_data: data/raw/store.csv
-        paths.train_data: data/raw/train.csv
+        paths.train_final_data: data/processed/train_final.csv
+        paths.val_final_data: data/processed/val_final.csv
         training.n_estimators: 50
         training.n_jobs: -1
+        training.production_train: false
         training.random_state: 42
     outs:
     - path: artifacts/metrics/metrics.json
       hash: md5
-      md5: 1cb3190409568ca7c776846aa903ff95
-      size: 92
+      md5: 0b94536c6a5c5982af55cabc5bd462c0
+      size: 206
+    - path: artifacts/models/global_mean_sales.pkl
+      hash: md5
+      md5: 010e06c585f67d7806e65525c6e74a0f
+      size: 21
+    - path: artifacts/models/month_mapping.pkl
+      hash: md5
+      md5: cdfb5f27149d7b46db1c8118b365a4cd
+      size: 1226
     - path: artifacts/models/rossmann_model.joblib
       hash: md5
-      md5: 25d439ee2614d3c7da0c10616107eef4
-      size: 3578793073
+      md5: 19481ca3913f9aef5bbec627c04a769d
+      size: 4566592
+    - path: artifacts/models/store_dw_promo_mapping.pkl
+      hash: md5
+      md5: a8232b5fdd3420ce8399fc34fddc9806
+      size: 394594
+  processing:
+    cmd: .\.venv\Scripts\python.exe -m rossmann_mlops.processing --config 
+      configs/config.yaml
+    deps:
+    - path: configs/config.yaml
+      hash: md5
+      md5: c5dcc13f36e58283664467868b5d01f9
+      size: 794
+    - path: data/raw/store.csv
+      hash: md5
+      md5: c14bfb90b2537db09dbb2b8ef4697f17
+      size: 46126
+    - path: data/raw/test.csv
+      hash: md5
+      md5: 7ff2a56e2d28a3d993fe1d05a0676d82
+      size: 1468514
+    - path: data/raw/train.csv
+      hash: md5
+      md5: b7d92d5392ab95be0022169f67780de2
+      size: 39075162
+    - path: src/rossmann_mlops/config.py
+      hash: md5
+      md5: 2edc53ce2893a83c393374196cb731bf
+      size: 1243
+    - path: src/rossmann_mlops/processing.py
+      hash: md5
+      md5: 1594f475c0874cf700db30ceea820141
+      size: 14219
+    outs:
+    - path: data/processed/test_final.csv
+      hash: md5
+      md5: 2d35b6ac8281bf63cea1c0df7d93124a
+      size: 3430442
+    - path: data/processed/train_final.csv
+      hash: md5
+      md5: bfe48f412d04079560adb9d5c060f0db
+      size: 85428965
+    - path: data/processed/val_final.csv
+      hash: md5
+      md5: fb150f0ea381645c1a968e6bbaf809c0
+      size: 3937776
+  monitor:
+    cmd: .\.venv\Scripts\python.exe scripts/monitor.py --config 
+      configs/config.yaml
+    deps:
+    - path: artifacts/metrics/metrics.json
+      hash: md5
+      md5: 0b94536c6a5c5982af55cabc5bd462c0
+      size: 206
+    - path: configs/config.yaml
+      hash: md5
+      md5: c5dcc13f36e58283664467868b5d01f9
+      size: 794
+    - path: data/raw/store.csv
+      hash: md5
+      md5: c14bfb90b2537db09dbb2b8ef4697f17
+      size: 46126
+    - path: data/raw/test.csv
+      hash: md5
+      md5: 7ff2a56e2d28a3d993fe1d05a0676d82
+      size: 1468514
+    - path: data/raw/train.csv
+      hash: md5
+      md5: b7d92d5392ab95be0022169f67780de2
+      size: 39075162
+    - path: scripts/monitor.py
+      hash: md5
+      md5: 2437675d0466a9989ad8ecee3e573b0b
+      size: 931
+    - path: src/rossmann_mlops/config.py
+      hash: md5
+      md5: 2edc53ce2893a83c393374196cb731bf
+      size: 1243
+    - path: src/rossmann_mlops/monitoring.py
+      hash: md5
+      md5: 01c5856a95c1bf25a1abf0044d980918
+      size: 9819
+    params:
+      configs/config.yaml:
+        monitoring.alert_file: logs/alerts.jsonl
+        monitoring.drift_alert_threshold: 0.3
+        monitoring.mae_alert_threshold: 3000.0
+        monitoring.monitoring_report_file: logs/monitoring_report.jsonl
+        monitoring.rmse_alert_threshold: 4500.0
+        paths.metrics_file: artifacts/metrics/metrics.json
+        paths.store_data: data/raw/store.csv
+    outs:
+    - path: logs/
+      hash: md5
+      md5: 9277f9fae2055a0bc1f772157cd267ec.dir
+      size: 1209
+      nfiles: 1

@@ -1,5 +1,8 @@
 [core]
     remote = aws-remote
+
+[cache]
+    dir = ../../.dvc-cache
 ['remote "aws-remote"']
     url = s3://rossmann-project-data-2026/data
     region = ap-southeast-2
