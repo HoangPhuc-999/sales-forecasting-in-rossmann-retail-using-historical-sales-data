@@ -8,6 +8,7 @@ on:
       - 'configs/**'
       - 'pyproject.toml'
       - 'requirements.txt'
+      - 'requirements.api.txt'
       - 'Dockerfile.api'
       - 'Dockerfile.streamlit'
       - 'docker-compose.yaml'

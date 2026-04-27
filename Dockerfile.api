@@ -8,9 +8,9 @@ ENV PIP_NO_CACHE_DIR=1 \
 
 WORKDIR /install
 
-# Copy requirements trước để tận dụng Docker layer cache
-COPY requirements.txt .
-RUN pip install --prefix=/install --no-cache-dir -r requirements.txt
+# Copy runtime requirements trước để tận dụng Docker layer cache
+COPY requirements.api.txt .
+RUN pip install --prefix=/install --no-cache-dir -r requirements.api.txt
 
 # ──────────────────────────────────────────────
 # Stage 2: api — image chạy FastAPI (nhỏ gọn)
