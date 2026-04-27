@@ -1,12 +1,14 @@
 from __future__ import annotations
 
 from contextlib import asynccontextmanager
+from time import perf_counter
 from typing import Any
 
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, Request, Response
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
+from prometheus_client import CONTENT_TYPE_LATEST, Counter, Histogram, generate_latest
 
 from rossmann_mlops.config import load_config
 from rossmann_mlops.predict import PredictionInputError, Predictor
@@ -40,6 +42,33 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(title="Rossmann Sales Forecast API", version="0.1.0", lifespan=lifespan)
 
+REQUEST_COUNT = Counter(
+    "rossmann_api_requests_total",
+    "Total number of HTTP requests",
+    ["method", "path", "status_code"],
+)
+REQUEST_LATENCY = Histogram(
+    "rossmann_api_request_duration_seconds",
+    "HTTP request latency in seconds",
+    ["method", "path"],
+)
+
+
+@app.middleware("http")
+async def prometheus_http_middleware(request: Request, call_next):
+    method = request.method
+    path = request.url.path
+    start = perf_counter()
+    status_code = 500
+
+    try:
+        response = await call_next(request)
+        status_code = response.status_code
+        return response
+    finally:
+        REQUEST_COUNT.labels(method=method, path=path, status_code=str(status_code)).inc()
+        REQUEST_LATENCY.labels(method=method, path=path).observe(perf_counter() - start)
+
 
 @app.exception_handler(RequestValidationError)
 async def validation_exception_handler(_: Request, exc: RequestValidationError) -> JSONResponse:
@@ -59,6 +88,11 @@ async def value_error_exception_handler(_: Request, exc: ValueError) -> JSONResp
 @app.get("/health")
 def health() -> dict[str, str]:
     return {"status": "ok"}
+
+
+@app.get("/metrics")
+def metrics() -> Response:
+    return Response(content=generate_latest(), media_type=CONTENT_TYPE_LATEST)
 
 
 @app.post("/predict")

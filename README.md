@@ -149,6 +149,45 @@ Output logs:
 - `logs/performance.jsonl`
 - `logs/alerts.jsonl`
 
+### Local Prometheus + Grafana Demo
+
+This repository includes a local observability stack:
+
+- Prometheus scrapes API metrics from `/metrics`
+- Prometheus also scrapes model quality metrics from monitoring logs via `model-metrics-exporter`
+- Grafana auto-loads a dashboard named `Rossmann API Overview`
+- Alertmanager evaluates alert rules and forwards notifications to `alert-notifier`
+
+Run the full stack:
+
+```bash
+docker compose up --build
+```
+
+Open services:
+
+- API: `http://localhost:8000`
+- API metrics: `http://localhost:8000/metrics`
+- Prometheus: `http://localhost:9090`
+- Alertmanager: `http://localhost:9093`
+- Grafana: `http://localhost:3000` (user: `admin`, password: `admin`)
+
+Default alert rules include:
+
+- high API 5xx error rate
+- high API p95 latency
+- severe data drift detected
+- model RMSE above threshold
+
+Notification forwarding:
+
+- `SLACK_WEBHOOK_URL` -> send alert message to Slack/Discord compatible webhook
+- `TELEGRAM_BOT_TOKEN` and `TELEGRAM_CHAT_ID` -> send alert message to Telegram
+
+You can set these environment variables before `docker compose up --build`.
+
+To generate traffic for dashboard panels, call `/health` or `/predict` repeatedly.
+
 ## Reproducibility
 
 This project is set up to support reproducible runs:

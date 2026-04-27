@@ -1,0 +1,45 @@
+groups:
+  - name: rossmann-api-alerts
+    rules:
+      - alert: RossmannHighErrorRate
+        expr: |
+          (
+            sum(rate(rossmann_api_requests_total{status_code=~"5.."}[5m]))
+            /
+            clamp_min(sum(rate(rossmann_api_requests_total[5m])), 0.001)
+          ) > 0.05
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: "API 5xx error rate is high"
+          description: "5xx error rate is above 5% for 2 minutes"
+
+      - alert: RossmannHighLatencyP95
+        expr: histogram_quantile(0.95, sum(rate(rossmann_api_request_duration_seconds_bucket[5m])) by (le)) > 1.0
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: "API p95 latency is high"
+          description: "p95 request latency is above 1 second for 2 minutes"
+
+  - name: rossmann-model-alerts
+    rules:
+      - alert: RossmannSevereDataDrift
+        expr: rossmann_model_drift_severe_count > 0
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Severe data drift detected"
+          description: "Model monitoring reports one or more severe drift features"
+
+      - alert: RossmannHighModelRMSE
+        expr: rossmann_model_rmse > 4500
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Model RMSE exceeds threshold"
+          description: "Latest RMSE is above 4500"

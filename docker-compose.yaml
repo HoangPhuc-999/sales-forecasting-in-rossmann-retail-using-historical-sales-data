@@ -19,6 +19,84 @@ services:
       start_period: 10s
     restart: unless-stopped
 
+  prometheus:
+    image: prom/prometheus:v2.55.1
+    container_name: rossmann_prometheus
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./monitoring/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./monitoring/prometheus/alerts.yml:/etc/prometheus/alerts.yml:ro
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --web.enable-lifecycle
+    depends_on:
+      api:
+        condition: service_healthy
+      model-metrics-exporter:
+        condition: service_started
+      alertmanager:
+        condition: service_started
+    restart: unless-stopped
+
+  model-metrics-exporter:
+    build:
+      context: .
+      dockerfile: Dockerfile.api
+      target: api
+    container_name: rossmann_model_metrics_exporter
+    command: ["python", "-m", "rossmann_mlops.model_metrics_exporter"]
+    environment:
+      - MONITORING_REPORT_FILE=logs/monitoring_report.jsonl
+      - MODEL_EXPORTER_PORT=9108
+      - MODEL_EXPORTER_POLL_SECONDS=15
+    volumes:
+      - ./logs:/app/logs
+    restart: unless-stopped
+
+  alertmanager:
+    image: prom/alertmanager:v0.28.0
+    container_name: rossmann_alertmanager
+    ports:
+      - "9093:9093"
+    volumes:
+      - ./monitoring/alertmanager/alertmanager.yml:/etc/alertmanager/alertmanager.yml:ro
+    command:
+      - --config.file=/etc/alertmanager/alertmanager.yml
+    restart: unless-stopped
+
+  alert-notifier:
+    build:
+      context: .
+      dockerfile: Dockerfile.api
+      target: api
+    container_name: rossmann_alert_notifier
+    command: ["uvicorn", "rossmann_mlops.alert_notifier:app", "--host", "0.0.0.0", "--port", "8010"]
+    environment:
+      - SLACK_WEBHOOK_URL=${SLACK_WEBHOOK_URL:-}
+      - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN:-}
+      - TELEGRAM_CHAT_ID=${TELEGRAM_CHAT_ID:-}
+    ports:
+      - "8010:8010"
+    restart: unless-stopped
+
+  grafana:
+    image: grafana/grafana:11.1.5
+    container_name: rossmann_grafana
+    ports:
+      - "3000:3000"
+    environment:
+      - GF_SECURITY_ADMIN_USER=admin
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+      - GF_USERS_ALLOW_SIGN_UP=false
+    volumes:
+      - ./monitoring/grafana/provisioning/datasources:/etc/grafana/provisioning/datasources:ro
+      - ./monitoring/grafana/provisioning/dashboards:/etc/grafana/provisioning/dashboards:ro
+      - ./monitoring/grafana/dashboards:/var/lib/grafana/dashboards:ro
+    depends_on:
+      - prometheus
+    restart: unless-stopped
+
   streamlit:
     build:
       context: .
@@ -32,5 +110,7 @@ services:
     depends_on:
       api:
         condition: service_healthy
+      grafana:
+        condition: service_started
     restart: unless-stopped
 
